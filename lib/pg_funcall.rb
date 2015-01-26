@@ -6,14 +6,36 @@ require 'uuid'
 require 'ipaddr'
 require 'ipaddr_extensions'
 require 'pg_funcall/ipaddr_monkeys'
+require 'pg_funcall/type_map'
 
-module PgFuncall
-  FTYPE_CACHE = {}
-  GEN_CACHE = {}
+class PgFuncall
+  module HelperMethods
+    [:call_uncast, :call_raw, :call_scalar, :call_returning_array,
+     :clear_cache, :call_returning_type, :call_cast, :call, :casting_query].each do |meth|
+      define_method(meth) do |*args, &blk|
+        PgFuncall.default_instance.__send__(meth, *args, &blk)
+      end
+    end
+  end
 
-  def _clear_cache
-    FTYPE_CACHE.clear
-    GEN_CACHE.clear
+
+  def self.default_instance
+    @default_instance ||= PgFuncall.new(ActiveRecord::Base.connection)
+  end
+
+  def self.default_instance=(instance)
+    @default_instance = instance
+  end
+
+  def initialize(connection)
+    raise ArgumentError, "Requires ActiveRecord PG connection" unless
+        connection.is_a?(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter)
+    
+    clear_cache
+  end
+
+  def clear_cache
+    (@ftype_cache ||= {}).clear
     true
   end
 
@@ -62,7 +84,7 @@ module PgFuncall
 
   Literal = Struct.new(:value)
 
-  def tag_pg_type(value, tagtype, pgvalue = nil)
+  def self.tag_pg_type(value, tagtype, pgvalue = nil)
     pgvalue ||= value
 
     value.class_eval do
@@ -82,7 +104,7 @@ module PgFuncall
   #
   # wrap a value so that it is inserted into the query as-is
   #
-  def literal(arg)
+  def self.literal(arg)
     Literal.new(arg)
   end
 
@@ -333,12 +355,12 @@ module PgFuncall
   # Query PostgreSQL metadata about function to find its
   # return type and argument types
   #
-  def _function_types(fn)
-    return FTYPE_CACHE[fn] if FTYPE_CACHE.has_key?(fn)
+  def function_types(fn)
+    return @ftype_cache[fn] if @ftype_cache.has_key?(fn)
 
     parts = fn.split('.', 2)
     info = if parts.length == 1
-      _search_path.map do |ns|
+      search_path.map do |ns|
         res = _pg_conn.query(FMETAQUERY % [parts[0], ns])
         res.ntuples == 1 ? res : nil
       end.compact.first
@@ -349,7 +371,7 @@ module PgFuncall
     return nil unless info && info.ntuples == 1
 
     # returns an array of [return value type, [arg types]]
-    FTYPE_CACHE[fn] = [
+    @ftype_cache[fn] = [
         info.getvalue(0,0).to_i,
         info.getvalue(0,1).split(/ +/).map(&:to_i)
     ]
@@ -358,11 +380,11 @@ module PgFuncall
   #
   # Return an array of schema names for the current session's search path
   #
-  def _search_path
+  def search_path
     _pg_conn.query("SHOW search_path;") do |res|
       res.column_values(0).first.split(/, ?/)
     end
   end
 
-  extend(self)
+  extend(HelperMethods)
 end
