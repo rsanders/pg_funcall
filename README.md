@@ -18,6 +18,10 @@ Or install it yourself as:
 
     $ gem install pg_funcall
 
+This gem is currently only tested with ActiveRecord 4.0.x. There have been some changes with
+type mapping in 4.1 which are likely to break it. The right answer is just to remove that
+dependency altogether.
+
 ## Usage
 
 TODO: Write usage instructions here

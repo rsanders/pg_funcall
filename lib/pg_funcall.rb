@@ -1,3 +1,11 @@
+# used for some query forms, and for mapping types from AR -> Ruby
+require 'active_record'
+
+# supported types
+require 'uuid'
+require 'ipaddr'
+require 'ipaddr_extensions'
+require 'pg_funcall/ipaddr_monkeys'
 
 module PgFuncall
   FTYPE_CACHE = {}

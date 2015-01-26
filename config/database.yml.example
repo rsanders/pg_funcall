@@ -1,0 +1,17 @@
+test:
+  adapter: postgresql
+  encoding: UTF8
+  database: pg_funcall_test
+  username: pgfuncallgem
+  password: pgfuncallgem
+  min_messages: warning
+  host: localhost
+
+development:
+  adapter: postgresql
+  encoding: UTF8
+  database: pg_funcall_dev
+  username: pgfuncallgem
+  password: pgfuncallgem
+  min_messages: warning
+  host: localhost

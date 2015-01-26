@@ -7,6 +7,8 @@ require 'spec_helper'
 describe PgFuncall do
   before(:all) do
     ActiveRecord::Base.connection.execute <<-SQL
+      CREATE EXTENSION IF NOT EXISTS hstore;
+
       CREATE OR REPLACE FUNCTION public.dbfspec_polyfunc(arg1 anyelement)
       RETURNS anyelement
       LANGUAGE plpgsql
