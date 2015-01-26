@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+lib = File.expand_path('../lib', __FILE__)
+$LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
+
+require 'yaml'
+require 'active_record'
+configs = YAML.load(File.read("config/database.yml.example"))
+ActiveRecord::Base.establish_connection(configs['development'])
+
+require 'pg_funcall'
+
+def conn
+  ActiveRecord::Base.connection
+end
+
+def pgconn
+  conn.raw_connection
+end
+
+def oidclass
+  ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID
+end
+
+begin
+  require 'pry'
+  Pry.start
+rescue LoadError
+  require 'irb'
+  IRB.start
+end
+

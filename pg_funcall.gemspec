@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "pg", ">= 0.17.0"
-  spec.add_dependency "activerecord", "~> 4.0.13"
+  spec.add_dependency "activerecord", ">= 4.0.0"
 
   # support for various PG types
   spec.add_dependency "uuid"
@@ -27,7 +27,8 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "bundler", "~> 1.7"
   spec.add_development_dependency "rake", "~> 10.0"
-  spec.add_development_dependency "rspec", "~> 2.14"
+  spec.add_development_dependency "rspec", "~> 2.14.0"
   spec.add_development_dependency "simplecov"
+  spec.add_development_dependency "wwtd"
 
 end
