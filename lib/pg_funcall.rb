@@ -31,13 +31,14 @@ class PgFuncall
     raise ArgumentError, "Requires ActiveRecord PG connection" unless
         connection.is_a?(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter)
 
-    @connection = connection
+    @ar_connection = connection
 
     clear_cache
   end
 
   def clear_cache
     (@ftype_cache ||= {}).clear
+    @type_map = nil
     true
   end
 
@@ -82,6 +83,14 @@ class PgFuncall
     def initialize(uuid)
       super(uuid, 'uuid')
     end
+
+    def self.generate
+      PGUUID.initialize(UUID.new.generate)
+    end
+
+    def to_s
+      self.value
+    end
   end
 
   Literal = Struct.new(:value)
@@ -89,6 +98,7 @@ class PgFuncall
   def self.tag_pg_type(value, tagtype, pgvalue = nil)
     pgvalue ||= value
 
+    # XXX: this is going to blow the method cache every time it runs
     value.class_eval do
       include PGTyped
 
@@ -122,6 +132,10 @@ class PgFuncall
     call_raw(fn, *args).rows
   end
 
+  #
+  # "Quote", which means to format and quote, a parameter for inclusion into
+  # a SQL query as a string.
+  #
   def _quote_param(param, type=nil)
     return param.value if param.is_a?(Literal)
 
@@ -168,7 +182,6 @@ class PgFuncall
         end
       when Array
         "{" + param.map {|p| _format_param_for_descriptor(p)}.join(",") + "}"
-        #"ARRAY[" + param.map {|p| _format_param_for_descriptor(p)}.join(",") + "]"
       when IPAddr
         param.to_cidr_string
       when Range
@@ -216,40 +229,30 @@ class PgFuncall
   end
 
   def type_map
-    @type_map ||= TypeMap.fetch(@connection)
+    @type_map ||= TypeMap.fetch(@ar_connection, search_path: search_path)
   end
 
   #
   # Force a typecast of the return value
   #
   def call_returning_type(fn, ret_type, *args)
-    _ar_type_for_name(ret_type).type_cast(call(fn, *args))
+    # TODO: type_cast is private in Rails 4.2
+    _ar_type_for_name(ret_type).__send__(:type_cast, call(fn, *args))
   end
 
   def _cast_pgresult(res)
     res.column_values(0).map do |val|
-      _ar_type_for_typeid(res.ftype(0)).type_cast(val)
+      # TODO: type_cast is private in Rails 4.2
+      _ar_type_for_typeid(res.ftype(0)).__send__(:type_cast, val)
     end
   end
 
-
   def call_cast(fn, *args)
+    ret_type = type_map.function_types(fn)
+
     call_raw_pg(fn, *args) do |res|
       _cast_pgresult(res).first
     end
-  end
-
-  def _oid_for_type(type)
-    qtype = type.gsub(/(\[\])+$/, '')
-    _pg_conn.query("SELECT oid, typarray from pg_type where typname = '#{qtype}';") do |res|
-      return nil if res.ntuples == 0
-
-      if type.end_with?('[]')
-        res.getvalue(0,1)
-      else
-        res.getvalue(0,0)
-      end
-    end.to_i
   end
 
   def _pg_param_descriptors(params)
@@ -257,13 +260,13 @@ class PgFuncall
       pgtype = _pgtype_for_value(p)
       {value: _format_param_for_descriptor(p, pgtype),
        # if we can't find a type, let PG guess
-       type:  _oid_for_type(pgtype) || 0,
+       type:  type_map.oid_for_type(pgtype) || 0,
        format: 0}
     end
   end
 
   def casting_query(query, params)
-    puts "param desctiptors = #{_pg_param_descriptors(params)}.inspect"
+    puts "param descriptors = #{_pg_param_descriptors(params)}.inspect"
     _pg_conn.exec_params(query, _pg_param_descriptors(params)) do |res|
       _cast_pgresult(res)
     end
@@ -338,44 +341,11 @@ class PgFuncall
   alias :call :call_cast
 
   def _ar_conn
-    ActiveRecord::Base.connection
+    @ar_connection
   end
 
   def _pg_conn
     _ar_conn.raw_connection
-  end
-
-  FMETAQUERY = <<-"SQL"
-          SELECT prorettype, proargtypes
-          FROM pg_proc as pgp
-          JOIN pg_namespace as ns on pgp.pronamespace = ns.oid
-          WHERE proname = '%s' AND ns.nspname = '%s';
-        SQL
-
-  #
-  # Query PostgreSQL metadata about function to find its
-  # return type and argument types
-  #
-  def function_types(fn)
-    return @ftype_cache[fn] if @ftype_cache.has_key?(fn)
-
-    parts = fn.split('.', 2)
-    info = if parts.length == 1
-      search_path.map do |ns|
-        res = _pg_conn.query(FMETAQUERY % [parts[0], ns])
-        res.ntuples == 1 ? res : nil
-      end.compact.first
-    else
-      _pg_conn.query(FMETAQUERY % [parts[1], parts[0]])
-    end
-
-    return nil unless info && info.ntuples == 1
-
-    # returns an array of [return value type, [arg types]]
-    @ftype_cache[fn] = [
-        info.getvalue(0,0).to_i,
-        info.getvalue(0,1).split(/ +/).map(&:to_i)
-    ]
   end
 
   #

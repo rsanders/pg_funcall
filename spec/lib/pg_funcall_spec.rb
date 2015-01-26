@@ -96,18 +96,6 @@ describe PgFuncall do
         subject.search_path.should == search_path
       end
     end
-
-    context '#function_types' do
-      it 'returns expected types for qualified name' do
-        subject.function_types('public.dbfspec_textfunc').
-            should == [25, [25, 25]]
-      end
-
-      it 'returns same types for unqualified name' do
-        subject.function_types('public.dbfspec_textfunc').
-            should == subject.function_types('dbfspec_textfunc')
-      end
-    end
   end
 
   context 'quoting for inlining into string' do
