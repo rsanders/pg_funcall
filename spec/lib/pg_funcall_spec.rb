@@ -110,7 +110,7 @@ describe PgFuncall do
     end
   end
 
-  context 'quoting' do
+  context 'quoting for inlining into string' do
     subject { PgFuncall.default_instance }
     it 'does not quote integer' do
       subject._quote_param(50).should == "50"
@@ -146,6 +146,46 @@ describe PgFuncall do
     it 'quotes Ruby hash as hstore' do
       subject._quote_param({a: 1, b: :foo}).should ==
           "$$a => 1,b => foo$$::hstore"
+    end
+  end
+
+  context 'quoting for inclusing in Pg param descriptor' do
+    subject { PgFuncall.default_instance }
+
+    it 'does not quote integer' do
+      subject._format_param_for_descriptor(50).should == "50"
+    end
+
+    it 'single-quotes a string' do
+      subject._format_param_for_descriptor("foo").should == "foo"
+    end
+
+    it 'handles single quotes embedded in string' do
+      subject._format_param_for_descriptor("ain't misbehavin'").should ==
+          "ain't misbehavin'"
+    end
+
+    it 'quotes string array properly' do
+      subject._format_param_for_descriptor(%w[a b cdef]).should ==
+          "{a,b,cdef}"
+    end
+
+    it 'quotes integer array properly' do
+      subject._format_param_for_descriptor([99, 100]).should ==
+          "{99,100}"
+    end
+
+    # XXX: this can be iffy unless there's a clear typecast or
+    #  unambiguous function parameter type; arrays must be typed
+    #  so it's best to specify the type of empty arrays
+    it 'quotes empty array' do
+      subject._format_param_for_descriptor([]).should ==
+          "{}"
+    end
+
+    it 'quotes Ruby hash as hstore' do
+      subject._format_param_for_descriptor({a: 1, b: :foo}).should ==
+          "a => 1,b => foo"
     end
   end
 

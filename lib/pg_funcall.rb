@@ -30,7 +30,9 @@ class PgFuncall
   def initialize(connection)
     raise ArgumentError, "Requires ActiveRecord PG connection" unless
         connection.is_a?(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter)
-    
+
+    @connection = connection
+
     clear_cache
   end
 
@@ -137,18 +139,23 @@ class PgFuncall
     end
   end
 
-  def _quote_param_for_descriptor(param, type=nil)
+  #
+  # Represent a Ruby object in a string form to be passed as a parameter
+  # within a descriptor hash, rather than substituted into a string-form
+  # query.
+  #
+  def _format_param_for_descriptor(param, type=nil)
     return param.value if param.is_a?(Literal)
 
     case param
       when TypedArray
-        _quote_param_for_descriptor(param.value, param.type + "[]")
+        _format_param_for_descriptor(param.value, param.type + "[]")
       when Typed
-        _quote_param_for_descriptor(param.value, param.type)
+        _format_param_for_descriptor(param.value, param.type)
       when PGTyped
         param.respond_to?(:__pg_value) ?
             param.__pg_value :
-            _quote_param_for_descriptor(param, type)
+            _format_param_for_descriptor(param, type)
       when TrueClass
         'true'
       when FalseClass
@@ -160,8 +167,8 @@ class PgFuncall
           param
         end
       when Array
-        "{" + param.map {|p| _quote_param_for_descriptor(p)}.join(",") + "}"
-        #"ARRAY[" + param.map {|p| _quote_param_for_descriptor(p)}.join(",") + "]"
+        "{" + param.map {|p| _format_param_for_descriptor(p)}.join(",") + "}"
+        #"ARRAY[" + param.map {|p| _format_param_for_descriptor(p)}.join(",") + "]"
       when IPAddr
         param.to_cidr_string
       when Range
@@ -173,7 +180,7 @@ class PgFuncall
             "[#{param.first},#{param.last}#{last_char}"
         end
       when Set
-        _quote_param_for_descriptor(param.to_a)
+        _format_param_for_descriptor(param.to_a)
       when Hash
         param.map do |k,v|
           "#{k} => #{v}"
@@ -200,22 +207,16 @@ class PgFuncall
 
   alias :call_raw :call_raw_inline
 
-  def _ar_type_map
-    if _ar_conn.instance_variable_defined?("@type_map")
-      _ar_conn.instance_variable_get("@type_map")
-    elsif ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID.const_defined?(:TYPE_MAP)
-      ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::TYPE_MAP
-    else
-      raise "Don't know how to get the Type map from your version of ActiveRecord"
-    end
-  end
-
   def _ar_type_for_typeid(typeid)
-    _ar_type_map[typeid]
+    type_map.lookup_by_oid(typeid)
   end
 
   def _ar_type_for_name(name)
-    ActiveRecord::Base.connection.class::OID::NAMES[name]
+    type_map.lookup_by_name(name)
+  end
+
+  def type_map
+    @type_map ||= TypeMap.fetch(@connection)
   end
 
   #
@@ -254,7 +255,7 @@ class PgFuncall
   def _pg_param_descriptors(params)
     params.map do |p|
       pgtype = _pgtype_for_value(p)
-      {value: _quote_param_for_descriptor(p, pgtype),
+      {value: _format_param_for_descriptor(p, pgtype),
        # if we can't find a type, let PG guess
        type:  _oid_for_type(pgtype) || 0,
        format: 0}
