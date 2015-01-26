@@ -178,8 +178,18 @@ module PgFuncall
 
   alias :call_raw :call_raw_inline
 
+  def _ar_type_map
+    if _ar_conn.instance_variable_defined?("@type_map")
+      _ar_conn.instance_variable_get("@type_map")
+    elsif ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID.const_defined?(:TYPE_MAP)
+      ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::TYPE_MAP
+    else
+      raise "Don't know how to get the Type map from your version of ActiveRecord"
+    end
+  end
+
   def _ar_type_for_typeid(typeid)
-    ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::TYPE_MAP[typeid]
+    _ar_type_map[typeid]
   end
 
   def _ar_type_for_name(name)
