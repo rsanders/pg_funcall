@@ -220,12 +220,12 @@ class PgFuncall
 
   alias :call_raw :call_raw_inline
 
-  def _ar_type_for_typeid(typeid)
-    type_map.lookup_by_oid(typeid)
+  def type_for_typeid(typeid)
+    type_map.resolve(typeid.to_i)
   end
 
-  def _ar_type_for_name(name)
-    type_map.lookup_by_name(name)
+  def type_for_name(name)
+    type_map.resolve(name)
   end
 
   def type_map
@@ -236,22 +236,31 @@ class PgFuncall
   # Force a typecast of the return value
   #
   def call_returning_type(fn, ret_type, *args)
-    # TODO: type_cast is private in Rails 4.2
-    _ar_type_for_name(ret_type).__send__(:type_cast, call(fn, *args))
+    type_map.type_cast_from_database(call(fn, *args),
+                                     type_for_name(ret_type))
   end
 
+  #
+  # Take a PGResult and cast the first column of each tuple to the
+  # Ruby equivalent of the PG type as described in the PGResult.
+  #
   def _cast_pgresult(res)
     res.column_values(0).map do |val|
-      # TODO: type_cast is private in Rails 4.2
-      _ar_type_for_typeid(res.ftype(0)).__send__(:type_cast, val)
+      type_map.type_cast_from_database(val,
+                                       type_for_typeid(res.ftype(0)))
     end
   end
 
   def call_cast(fn, *args)
-    ret_type = type_map.function_types(fn)
+    fn_sig = type_map.function_types(fn)
+
+    ## TODO: finish this with the new type info class
+    # unwrap = fn_sig && type_map.is_scalar_type?(type_map.lookup_by_oid(fn_sig.ret_type))
 
     call_raw_pg(fn, *args) do |res|
-      _cast_pgresult(res).first
+      results = _cast_pgresult(res)
+      # unwrap && results.ntuples < 2 ? results.first : results
+      results.first
     end
   end
 
@@ -266,7 +275,7 @@ class PgFuncall
   end
 
   def casting_query(query, params)
-    puts "param descriptors = #{_pg_param_descriptors(params)}.inspect"
+    # puts "param descriptors = #{_pg_param_descriptors(params)}.inspect"
     _pg_conn.exec_params(query, _pg_param_descriptors(params)) do |res|
       _cast_pgresult(res)
     end

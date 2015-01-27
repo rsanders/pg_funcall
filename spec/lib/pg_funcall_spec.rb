@@ -264,7 +264,7 @@ describe PgFuncall do
 
       it 'should handle binary string' do
         binstring = [*(1..100)].pack('L*')
-        puts "encoding is #{binstring.encoding}"
+        # puts "encoding is #{binstring.encoding}"
         roundtrip(binstring).should == binstring
       end
     end

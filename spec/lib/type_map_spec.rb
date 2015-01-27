@@ -35,7 +35,38 @@ describe PgFuncall::TypeMap do
     it { should be_a(PgFuncall::TypeMap) }
   end
 
-  context 'lookup' do
+  context '#resolve of TypeInfo' do
+    context 'by name' do
+      it 'should return the appropriate type for int4' do
+        subject.resolve('int4').should be_a(PgFuncall::TypeInfo)
+        subject.resolve('int4').name.should == 'int4'
+      end
+
+      it 'should contain reference to ar_type for Integer' do
+        subject.resolve('int4').ar_type.should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
+      end
+    end
+
+    context 'by oid' do
+      it 'should return the appropriate array type for 17 (bytea)' do
+        subject.resolve(17).should be_a(PgFuncall::TypeInfo)
+        subject.resolve(17).name.should == 'bytea'
+      end
+
+      it 'should return the appropriate array type for 1007 (int4 array)' do
+        typobj = subject.resolve(1007)
+        typobj.should be_array
+        typobj.element_type_oid.should == 23
+      end
+
+      it 'should contain reference to ar_type for intarray' do
+        subject.resolve(1007).ar_type.should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Array)
+        subject.resolve(1007).ar_type.subtype.should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
+      end
+    end
+  end
+
+  context 'lookup of AR types' do
     context 'by name' do
       it 'should return the appropriate type for int4' do
         subject.lookup_by_name('int4').should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
@@ -60,8 +91,9 @@ describe PgFuncall::TypeMap do
 
     context '#function_types' do
       it 'returns expected types for qualified name' do
-        subject.function_types('public.dbfspec_textfunc').
-            should == [25, [25, 25]]
+        types = subject.function_types('public.dbfspec_textfunc')
+        types.ret_type.should == 25
+        types.arg_sigs.should include([25, 25])
       end
 
       it 'returns same types for unqualified name' do
