@@ -215,7 +215,9 @@ class PgFuncall
     query = "SELECT #{fn}(" +
          args.map {|arg| _quote_param(arg) }.join(", ") + ") as res;"
 
-    _pg_conn.query(query, &blk)
+    _pg_conn.query(query, &blk).tap do |res|
+      PgFuncall._assign_pg_type_map_to_res(res, _pg_conn)
+    end
   end
 
   alias :call_raw :call_raw_inline
@@ -240,11 +242,23 @@ class PgFuncall
                                      type_for_name(ret_type))
   end
 
+  def self._assign_pg_type_map_to_res(res, conn)
+    return res
+
+    ## this appears to fail to roundtrip on bytea and date types
+    ##
+    #if res.respond_to?(:type_map=)
+    #  res.type_map = PG::BasicTypeMapForResults.new(conn)
+    #end
+    #res
+  end
+
   #
   # Take a PGResult and cast the first column of each tuple to the
   # Ruby equivalent of the PG type as described in the PGResult.
   #
   def _cast_pgresult(res)
+    PgFuncall._assign_pg_type_map_to_res(res, _pg_conn)
     res.column_values(0).map do |val|
       type_map.type_cast_from_database(val,
                                        type_for_typeid(res.ftype(0)))

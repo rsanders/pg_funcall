@@ -69,17 +69,17 @@ describe PgFuncall::TypeMap do
   context 'lookup of AR types' do
     context 'by name' do
       it 'should return the appropriate type for int4' do
-        subject.lookup_by_name('int4').should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
+        subject.lookup_ar_by_name('int4').should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
       end
     end
 
     context 'by oid' do
       it 'should return the appropriate array type for 17 (bytea)' do
-        subject.lookup_by_oid(17).should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Bytea)
+        subject.lookup_ar_by_oid(17).should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Bytea)
       end
 
       it 'should return the appropriate array type for 1007 (int4 array)' do
-        typobj = subject.lookup_by_oid(1007)
+        typobj = subject.lookup_ar_by_oid(1007)
         typobj.should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Array)
         typobj.subtype.should be_a(ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID::Integer)
       end

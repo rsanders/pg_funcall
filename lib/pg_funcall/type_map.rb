@@ -64,6 +64,8 @@ class PgFuncall
          JOIN pg_namespace as ns on pgt.typnamespace = ns.oid;
       SQL
 
+      PgFuncall._assign_pg_type_map_to_res(res, pg_connection)
+
       fields = res.fields
       @typeinfo = res.values.map do |values|
         row = Hash[fields.zip(values)]
@@ -99,14 +101,6 @@ class PgFuncall
       else
         raise ArgumentError, "You must supply a numeric OID or a string Type name"
       end
-    end
-
-    def lookup_by_oid(oid)
-      lookup_ar_by_oid(oid)
-    end
-
-    def lookup_by_name(name)
-      lookup_ar_by_name(name)
     end
 
     #
@@ -146,10 +140,12 @@ class PgFuncall
                   search_path && search_path.is_a?(Enumerable) && !search_path.empty?
                 search_path.map do |ns|
                   res = pg_connection.query(FMETAQUERY % [parts[0], ns])
+                  PgFuncall._assign_pg_type_map_to_res(res, pg_connection)
                   res.ntuples == 1 ? res : nil
                 end.compact.first
               else
-                pg_connection.query(FMETAQUERY % [parts[1], parts[0]])
+                PgFuncall._assign_pg_type_map_to_res(pg_connection.query(FMETAQUERY % [parts[1], parts[0]]),
+                                                     pg_connection)
               end
 
       return nil unless info && info.ntuples >= 1
