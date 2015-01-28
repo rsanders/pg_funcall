@@ -111,12 +111,37 @@ describe PgFuncall::TypeInfo do
     it 'should have an array type' do
       subject.array_type_oid.should_not be_nil
     end
-    it 'should cast a string to integer' do
+    it 'should cast a string to integer when leaving DB' do
       subject.cast_from_database('3211').should == 3211
+    end
+    it 'should cast from an integer to string form entering DB' do
+      subject.cast_to_database(3211).should == '3211'
     end
   end
 
   context 'parsed from all_type_rows' do
+    let(:row) { types_by_name['_int4'] }
 
+    it 'should return the correct OID' do
+      subject.oid.should == 1007
+    end
+    it 'should return the simple name' do
+      subject.name.should == '_int4'
+    end
+    it 'should return a simple fqname' do
+      subject.fqname.should == '_int4'
+    end
+    it { should_not be_numeric }
+    it { should_not be_temporal }
+    it { should be_array }
+    it 'should have an element type' do
+      subject.element_type_oid.should == 23
+    end
+    it 'should cast from string form to array of integers' do
+      subject.cast_from_database('{1,1,2,3,5,8}').should == [1,1,2,3,5,8]
+    end
+    it 'should cast from string form to array of integers' do
+      subject.cast_to_database([1,1,2,3,5,8]).should == '{1,1,2,3,5,8}'
+    end
   end
 end

@@ -93,31 +93,33 @@ class PgFuncall
       type.cast_from_database(value)
     end
 
+    def _canonicalize_type_name(name)
+      if name.end_with?('[]')
+        name = '_' + name.gsub(/(\[\])+$/, '')
+      end
+      name
+    end
+
     def resolve(oid_or_name)
       if oid_or_name.is_a?(Integer) || (oid_or_name.is_a?(String) && oid_or_name.match(/^[0-9]+$/))
         @typeinfo_by_oid[oid_or_name.to_i]
       elsif oid_or_name.is_a?(String) || oid_or_name.is_a?(Symbol)
-        @typeinfo_by_name[oid_or_name.to_s]
+        @typeinfo_by_name[_canonicalize_type_name(oid_or_name.to_s)]
       else
         raise ArgumentError, "You must supply a numeric OID or a string Type name"
       end
     end
 
     #
-    # Given a type name, with optional appended [] for array types, find the OID for it.
+    # Given a type name, with optional appended [] or prefixed _ for array types,
+    # return the OID for it.
+    #
+    # If array = true, find array type for given base type.
     #
     def oid_for_type(type, array = false)
-      array = type.end_with?('[]')
-      qtype = type.gsub(/(\[\])+$/, '')
-      pg_connection.query("SELECT oid, typarray from pg_type where typname = '#{qtype}';") do |res|
-        return nil if res.ntuples == 0
-
-        if array
-          res.getvalue(0,1)
-        else
-          res.getvalue(0,0)
-        end
-      end.to_i
+      type = _canonicalize_type_name(type)
+      type = '_' + type if array && !type.start_with?('_')
+      @typeinfo_by_name[type]
     end
 
     FMETAQUERY = <<-"SQL"

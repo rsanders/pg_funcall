@@ -281,10 +281,14 @@ class PgFuncall
   def _pg_param_descriptors(params)
     params.map do |p|
       pgtype = _pgtype_for_value(p)
-      {value: _format_param_for_descriptor(p, pgtype),
-       # if we can't find a type, let PG guess
-       type:  type_map.oid_for_type(pgtype) || 0,
-       format: 0}
+      typeinfo = type_map.resolve(pgtype)
+      {
+          # value: typeinfo.cast_to_database(p),
+          value: _format_param_for_descriptor(p, pgtype),
+          # if we can't find a type, let PG guess
+          type:  (typeinfo && typeinfo.oid) || 0,
+          format: 0
+      }
     end
   end
 
@@ -354,8 +358,9 @@ class PgFuncall
             raise "Unknown range type: #{value.first.type}"
         end
       when Array, Set
-        raise "Empty untyped array" if value.empty?
-        _pgtype_for_value(value.first) + '[]'
+        first = value.flatten.first
+        raise "Empty untyped array" if first.nil?
+        _pgtype_for_value(first) + '[]'
       else
         'text'
     end

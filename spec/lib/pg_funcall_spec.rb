@@ -298,14 +298,13 @@ describe PgFuncall do
         roundtrip(%w[a b longerstring c]).should == ['a', 'b', 'longerstring', 'c']
       end
       it 'should handle arrays of int arrays' do
-        pending 'it returns [nil, nil] for reasons unknown - PLS FIX GOOBY'
+        # pending 'it returns [nil, nil] for reasons unknown - PLS FIX GOOBY'
         roundtrip(PgFuncall::TypedArray.new([[1,2,77], [99, 0, 4]], 'int4[]')).
                       should == [[1,2,77], [99, 0, 4]]
       end
 
       it 'should handle arrays of txt arrays' do
         roundtrip([['a', 'b'], ['x', 'y']]).should == [['a', 'b'], ['x', 'y']]
-
       end
     end
 
