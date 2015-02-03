@@ -1,6 +1,9 @@
 require 'ipaddr'
 require 'ipaddr_extensions'
 
+#
+# TODO: we probably shouldn't do go around monkey-patching like this.
+#
 class IPAddr
   def prefixlen
     mask = @mask_addr
