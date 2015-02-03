@@ -1,3 +1,5 @@
-/vendor
+/tmp
 /coverage
 /gemfiles/.bundle
+/pkg
+/vendor
