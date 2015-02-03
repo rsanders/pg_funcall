@@ -298,7 +298,8 @@ describe PgFuncall do
         roundtrip(%w[a b longerstring c]).should == ['a', 'b', 'longerstring', 'c']
       end
       it 'should handle arrays of int arrays' do
-        # pending 'it returns [nil, nil] for reasons unknown - PLS FIX GOOBY'
+        pending('it returns [nil, nil] for reasons unknown on AR 4.0.x - PLS FIX GOOBY') if
+            ActiveRecord.version.segments[0..1] == [4,0]
         roundtrip(PgFuncall::TypedArray.new([[1,2,77], [99, 0, 4]], 'int4[]')).
                       should == [[1,2,77], [99, 0, 4]]
       end
